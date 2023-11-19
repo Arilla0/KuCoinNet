@@ -18,8 +18,11 @@ using Kucoin.Net.Objects.Models.Futures.Socket;
 using Kucoin.Net.Objects.Models.Spot.Socket;
 using CryptoExchange.Net.Authentication;
 using Kucoin.Net.Interfaces.Clients.SpotApi;
+using CryptoExchange.Net.CommonObjects;
 using System.Linq;
 using Kucoin.Net.Objects.Options;
+using System.Net.Http;
+using System.Net;
 
 namespace Kucoin.Net.Clients.SpotApi
 {
@@ -170,6 +173,22 @@ namespace Kucoin.Net.Clients.SpotApi
         public Task<CallResult<UpdateSubscription>> SubscribeToOrderBookUpdatesAsync(string symbol, int limit,
             Action<DataEvent<KucoinStreamOrderBookChanged>> onData, CancellationToken ct = default) =>
             SubscribeToOrderBookUpdatesAsync(new[] { symbol }, limit, onData, ct);
+
+        /// <inheritdoc />
+        public async Task<CallResult<UpdateSubscription>> SubscribeToOrderBookUpdatesAsync(string symbol, int limit, int symbolPrecision, Action<DataEvent<KucoinStreamOrderBookChanged>> onData, CancellationToken ct = default)
+        {
+            symbol.ValidateKucoinSymbol();
+            limit.ValidateIntValues(nameof(limit), 5, 50);
+
+            var innerHandler = new Action<DataEvent<JToken>>(tokenData =>
+            {
+                var book = GetData<KucoinStreamOrderBookChanged>(tokenData);
+                InvokeHandler(tokenData.As(book, TryGetSymbolFromTopic(tokenData)), onData);
+            });
+
+            var request = new KucoinRequest(ExchangeHelpers.NextId().ToString(CultureInfo.InvariantCulture), "subscribe", $"/spotMarket/level2Depth{limit}:" + symbol + "_" + symbolPrecision, false);
+            return await SubscribeAsync("spot", request, null, false, innerHandler, ct).ConfigureAwait(false);
+        }
 
         /// <inheritdoc />
         public async Task<CallResult<UpdateSubscription>> SubscribeToOrderBookUpdatesAsync(IEnumerable<string> symbols, int limit, Action<DataEvent<KucoinStreamOrderBookChanged>> onData, CancellationToken ct = default)
@@ -359,8 +378,20 @@ namespace Kucoin.Net.Clients.SpotApi
         /// <inheritdoc />
         protected override async Task<CallResult<string?>> GetConnectionUrlAsync(string address, bool authenticated)
         {
+
             var apiCredentials = (KucoinApiCredentials?)(ApiOptions.ApiCredentials ?? _baseClient.ClientOptions.ApiCredentials);
-            using (var restClient = new KucoinRestClient((options) =>
+
+            HttpClient httpClient = new HttpClient();
+            if (_baseClient.ClientOptions?.Proxy != null)
+            {
+                httpClient = new HttpClient(new HttpClientHandler()
+                {
+                    Proxy = new WebProxy(_baseClient.ClientOptions.Proxy.Host, _baseClient.ClientOptions.Proxy.Port)
+                });
+
+            }
+
+            using (var restClient = new KucoinRestClient(httpClient, null, (options) =>
             {
                 options.ApiCredentials = apiCredentials;
                 options.Environment = ClientOptions.Environment;

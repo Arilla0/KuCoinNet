@@ -231,7 +231,7 @@ namespace Kucoin.Net.Interfaces.Clients.SpotApi
         /// <param name="feeDeductType">Fee deduction type</param>
         /// <param name="ct">Cancellation token</param>
         /// <returns>Id of the withdrawal</returns>
-        Task<WebCallResult<KucoinNewWithdrawal>> WithdrawAsync(string asset, string toAddress, decimal quantity, string? memo = null, bool isInner = false, string? remark = null, string? chain = null, FeeDeductType? feeDeductType = null, CancellationToken ct = default);
+        Task<WebCallResult<KucoinNewWithdrawal>> WithdrawAsync(string asset, string toAddress, decimal quantity, string? memo = null, bool? isInner = null, string? remark = null, string? chain = null, FeeDeductType? feeDeductType = null, CancellationToken ct = default);
 
         /// <summary>
         /// Cancel a withdrawal
